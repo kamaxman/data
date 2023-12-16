@@ -1,0 +1,54 @@
+# Instal Transformers dari Hugging Face
+!pip install transformers
+# Instal pandas
+!pip install pandas
+
+# Import library yang dibutuhkan
+import pandas as pd
+from transformers import BertTokenizer, BertModel
+import torch
+
+# Fungsi untuk menghitung persamaan konteks
+def calculate_contextual_similarity(reference_sentence, comparison_sentences):
+    # Load tokenizer dan model BERT
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    model = BertModel.from_pretrained('bert-base-uncased')
+
+    # Tokenisasi dan konversi ke tensor untuk jawaban acuan
+    reference_inputs = tokenizer(reference_sentence, return_tensors='pt')
+    reference_outputs = model(**reference_inputs)
+    reference_contextual_embeddings = reference_outputs['last_hidden_state'].mean(dim=1).squeeze()
+
+    # Inisialisasi dictionary untuk menyimpan persamaan konteks untuk setiap jawaban
+    similarity_results = {}
+
+    # Loop melalui jawaban yang ingin dibandingkan
+    for idx, comparison_sentence in enumerate(comparison_sentences, 1):
+        # Tokenisasi dan konversi ke tensor untuk jawaban perbandingan
+        comparison_inputs = tokenizer(comparison_sentence, return_tensors='pt')
+        comparison_outputs = model(**comparison_inputs)
+        comparison_contextual_embeddings = comparison_outputs['last_hidden_state'].mean(dim=1).squeeze()
+
+        # Hitung cosine similarity antara dua vektor kontekstual
+        similarity = torch.nn.functional.cosine_similarity(reference_contextual_embeddings, comparison_contextual_embeddings, dim=0)
+
+        # Simpan hasil persamaan konteks
+        similarity_results[f'Jawaban-{idx}'] = similarity.item() * 100  # Ubah ke persentase
+
+    return similarity_results
+
+# Baca file CSV menggunakan pandas
+file_path = 'jawaban31.csv'  # Ganti dengan path file CSV Anda
+df = pd.read_csv(file_path)
+
+# Loop melalui setiap set Jawaban_Acuan dan Jawaban_Lain
+for row_index in range(0, len(df), 3):
+    reference_answer = df['Jawaban_Acuan'].iloc[row_index]
+    comparison_answers = [df[f'Jawaban_Lain_{i}'].iloc[row_index] for i in range(1, 31)]  # Ambil 30 Jawaban_Lain
+    results = calculate_contextual_similarity(reference_answer, comparison_answers)
+
+    # Tampilkan hasil
+    print(f"Set Baris ke-{row_index // 3 + 1}: Jawaban Acuan: {reference_answer}")
+    for key, value in results.items():
+        print(f"{key}: {value:.2f}% persamaan konteks")
+    print("\n")
